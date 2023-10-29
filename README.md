@@ -1,5 +1,5 @@
 # 2023datamining
-group7
+group7  
 廖偉陳：GRU  
 朱建誠：LSTM  
 流雲得：RNN  

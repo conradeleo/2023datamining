@@ -36,25 +36,24 @@ def main():
 
     print('Model generating...')
     GRU_T = GRU(args.timestep, 10, 1, 1).to(device)
-    ST_combined = LinearModel(config.feature_size+1, 1).to(device)
+    ST_combined = LinearModel(config.feature_size+1, 10, 1).to(device)
     loss_function = SMAPELoss().to(device)
 
     optimizer = optim.AdamW(GRU_T.parameters(), lr=config.learning_rate)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[5,10,15], gamma=0.8)
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[i for i in range(5, args.epochs, 5)], gamma=0.85)
     #train_engine = TrainEngine(GRU_T, ST_combined, train_loss_function, test_loss_function, optimizer)
 
     print('Training...')
+    running_loss = []
     #8.模型训练
     for epoch, train_loader, test_loader in epoch_gen:
         GRU_T.train()
-        running_loss = 0
         train_bar = tqdm(train_loader, f"Train epoch {epoch+1}/{args.epochs}") #形成进度条
         for train_input, train_target, train_feature in train_bar:
             train_input = train_input.to(device)
             train_target = train_target.to(device)
             train_feature = train_feature.to(device)
             optimizer.zero_grad()
-            scheduler.step()
 
             output_gru = GRU_T(train_input)
             combined_output = torch.cat([output_gru, train_feature], dim=-1)
@@ -64,10 +63,11 @@ def main():
             loss = loss.cpu()
             loss.backward()
             optimizer.step()
+            scheduler.step()
             
             train_bar.set_postfix(loss=loss.item())
-            running_loss += loss.item()
             #train_bar.desc = "train epoch[()/()] loss:[:.3f]".format(epoch + 1, config.epochs, loss)#模型验证
+        running_loss.append(loss.item())
 
     GRU_T.eval()
     best_loss = 200
@@ -92,7 +92,10 @@ def main():
 
     print(f'Test Loss: {test_loss.item():.4f}')
     
-    plt.plot(running_loss)
+    plt.plot(running_loss, label='Training Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
     plt.show()
     print('Finished Training')
 

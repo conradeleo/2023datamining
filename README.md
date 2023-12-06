@@ -11,7 +11,8 @@ GRU:
 pip install -r requirements
 ```
 ```shell
-cd src```
+cd src
+```
 
 arguments:
 ----------

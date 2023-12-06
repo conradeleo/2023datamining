@@ -21,7 +21,8 @@ arguments:
 `--timestep`
 `--batch_size`
 `--epoch`
-`--n_parallel_process`: 沒用
+
+註：`--n_parallel_process`: 沒用
 
 ex:
 ```shell

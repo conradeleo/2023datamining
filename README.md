@@ -7,8 +7,11 @@ group7
 
 GRU:
 ===
-`pip install -r requirements`
-`cd src`
+```shell
+pip install -r requirements
+```
+```shell
+cd src```
 
 arguments:
 ----------
@@ -20,4 +23,6 @@ arguments:
 `--n_parallel_process`: 沒用
 
 ex:
-`python main.py --train_mode --epoch 10`
+```shell
+python main.py --train_mode --epoch 10
+```

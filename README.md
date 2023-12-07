@@ -21,12 +21,12 @@ arguments:
 
 **注意：除了`train_1.csv`跟`train_2.csv`我沒讓程式能讀其他檔案，請確保檔案確實在`Dataset`資料夾內**
 
-`--timestep`、`--batch_size`、`--epoch`、`on_gpu` 你知道的
+`--timestep`、`--batch_size`、`--epochs`、`on_gpu` 你知道的
 
-`--n_parallel_process`: 沒用 還沒改掉
+`loss_type` 限定輸入`smape` 或`mse`
 
 ex:
 ---
 ```shell
-python main.py --train_mode --epoch 10
+python main.py --train_mode --loss_type smape --epoch 10
 ```

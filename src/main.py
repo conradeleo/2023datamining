@@ -7,12 +7,13 @@ from tqdm import tqdm
 from preprocess import DataProcessor
 from model import GRU, LinearModel, SMAPELoss
 from train import TrainEngine
-import config
 
 from argparse import ArgumentParser
-import multiprocessing as mp
+import configparser
 
+import os
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 def main():
     parser = ArgumentParser()
@@ -20,9 +21,12 @@ def main():
     parser.add_argument("--on_gpu", action='store_true')
     parser.add_argument("--timestep", type=int, default=5)
     parser.add_argument("--batch_size", type=int, default=64)
-
     parser.add_argument("--epochs", type=int, default=10)
-    parser.add_argument("--n_parallel_process", type=int, default=5)
+    parser.add_argument('--loss_type', type=str, default="smape", choices=['smape', 'mse'])
+    #parser.add_argument("--n_parallel_process", type=int, default=5)
+
+    config = configparser.ConfigParser()
+    config.read('config.ini')
 
     print('Start')
     args = parser.parse_args()
@@ -35,11 +39,15 @@ def main():
     epoch_gen = dp(args.epochs)
 
     print('Model generating...')
-    GRU_T = GRU(args.timestep, 10, 1, 1).to(device)
-    ST_combined = LinearModel(config.feature_size+1, 10, 1).to(device)
-    loss_function = SMAPELoss().to(device)
+    learning_rate = config['model_sett'].getfloat('learning_rate')
+    feature_size = config['model_sett'].getint('feature_size')
 
-    optimizer = optim.AdamW(GRU_T.parameters(), lr=config.learning_rate)
+    GRU_T = GRU(args.timestep, 10, 1, 1).to(device)
+    ST_combined = LinearModel(feature_size, 10, 1).to(device)
+    train_loss_function = SMAPELoss().to(device) if args.loss_type == 'smape' else torch.nn.MSELoss().to(device)
+    test_loss_function = SMAPELoss().to(device)
+
+    optimizer = optim.AdamW(GRU_T.parameters(), lr=learning_rate)
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[i for i in range(5, args.epochs, 5)], gamma=0.85)
     #train_engine = TrainEngine(GRU_T, ST_combined, train_loss_function, test_loss_function, optimizer)
 
@@ -59,19 +67,26 @@ def main():
             combined_output = torch.cat([output_gru, train_feature], dim=-1)
             final_output = ST_combined(combined_output)
             
-            loss = loss_function(final_output, train_target)
+            loss = train_loss_function(final_output, train_target)
             loss = loss.cpu()
             loss.backward()
             optimizer.step()
             scheduler.step()
             
             train_bar.set_postfix(loss=loss.item())
+            running_loss.append(loss.item())
             #train_bar.desc = "train epoch[()/()] loss:[:.3f]".format(epoch + 1, config.epochs, loss)#模型验证
-        running_loss.append(loss.item())
 
     GRU_T.eval()
-    best_loss = 200
     test_loss = 0
+    plot_path = config['save_path']['plot_path']
+    model_path = config['save_path']['model_path']
+    best_loss = config['model_sett'].getfloat('best_loss')
+    if not os.path.exists(plot_path):
+        os.makedirs(plot_path)
+    if not os.path.exists(model_path):
+        os.makedirs(model_path)
+
     with torch.no_grad():
         test_bar = tqdm(test_loader, f'Test')
         for test_input, test_target, test_feature in test_bar:
@@ -83,20 +98,25 @@ def main():
             combined_output = torch.cat([output_gru, test_feature], dim=-1)
             final_output = ST_combined(combined_output)
             
-            test_loss = loss_function(final_output, test_target)
+            test_loss = test_loss_function(final_output, test_target)
             test_loss = test_loss.cpu()
 
-        if test_loss < config.best_loss:
-            config.best_loss = test_loss
-            torch.save(GRU_T.state_dict(), config.save_path)
+        if test_loss < best_loss:
+            config['model_sett']['best_loss'] = str(test_loss.item())
+            with open('config.ini', 'w') as configfile:
+                config.write(configfile)
+
+            torch.save(GRU_T, f'{model_path}/GRU')
+            torch.save(ST_combined, f'{model_path}/ST_Linear')
 
     print(f'Test Loss: {test_loss.item():.4f}')
     
     plt.plot(running_loss, label='Training Loss')
-    plt.xlabel('Epoch')
+    plt.xlabel('running')
     plt.ylabel('Loss')
     plt.legend()
-    plt.show()
+    plt.savefig(f'{plot_path}/{datetime.now().strftime("%Y%m%d_%H%M")}_{args.loss_type}.png')
+    #plt.show()
     print('Finished Training')
 
 if __name__ == '__main__':

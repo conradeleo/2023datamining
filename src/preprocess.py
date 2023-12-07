@@ -1,23 +1,17 @@
 from __future__ import unicode_literals
 
 import os
-import csv
-import ast
-import time
-import math
-from datetime import datetime
+import configparser
 
 import numpy as np
 import pandas as pd
-from dask import dataframe as dd
+#from dask import dataframe as dd
 
 #import torch
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.model_selection import train_test_split
 from torch import from_numpy, log1p, cat
 from torch.utils.data import TensorDataset, DataLoader, random_split
-
-import config
 
 class DataProcessor:
     def __init__(self, timestep, batch_size, train=False):
@@ -30,14 +24,14 @@ class DataProcessor:
         self.test_size = 550//5 if train else 803-550
         self.batch_size = batch_size
 
-    def __call__(self, epoch, validation=False):
+    def __call__(self, epoch):
         print('\tData reading...')
         dataset = self.read_dataset()
         print('\tFeatures engineering...')
         features = self.features_gen(dataset)
 
         print('\tDaily data generating...')
-        dataX, dataY, features = self.prepare_dataset(dataset, features, validation)
+        dataX, dataY, features = self.prepare_dataset(dataset, features)
 
         epoch_gen = self.train_test_gen(epoch, dataX, dataY, features)
 
@@ -67,7 +61,11 @@ class DataProcessor:
 
             features.to_csv(f'../Dataset/{self.dataset_path}_features2.csv', index=False)
         
-        config.feature_size = features.shape[-1] + 1
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+        config['model_sett']['feature_size'] = str(features.shape[-1] + 2)
+        with open('config.ini', 'w') as configFile:
+            config.write(configFile)
         return features
 
     def parse(self, dataset):
@@ -124,7 +122,7 @@ class DataProcessor:
     def device_setting():
         ...
 
-    def prepare_dataset(self, dataset, features, validation=False):
+    def prepare_dataset(self, dataset, features):
         
         dataset = from_numpy(dataset.to_numpy(dtype='float32'))
         dataX = log1p(dataset).unfold(1, self.timestep, 1)[:,:-1]
@@ -142,10 +140,10 @@ class DataProcessor:
         features = features.expand(dataY.size(0), -1, -1)
         features = cat([dataset.unsqueeze(-1)[:-self.timestep,:,:], features], dim=-1)
         '''
-        print('X:', dataX.shape, 'Y:', dataY.shape, 'features', features.shape)
-        print(dataX[0, 0:2])
-        print(dataY[0, 0:2])
-        print(features[0, 0:2])
+        #print('X:', dataX.shape, 'Y:', dataY.shape, 'features', features.shape)
+        #print(dataX[0, 0:2])
+        #print(dataY[0, 0:2])
+        #print(features[0, 0:2])
         
         return dataX, dataY, features
 

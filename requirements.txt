@@ -2,6 +2,7 @@ torch
 numpy
 pandas
 argparse
+configparser
 tqdm
 matplotlib
 scikit-learn
